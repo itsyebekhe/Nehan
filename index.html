@@ -208,112 +208,160 @@
     </div>
   </nav>
 
-<script>
-  // UI LOGIC
-  const body = document.body;
-  function loadTheme() {
-    const saved = localStorage.getItem('theme');
-    if(saved === 'light') { body.setAttribute('data-theme', 'light'); document.getElementById('theme-btn').innerText = "حالت تاریک"; }
-    else { body.removeAttribute('data-theme'); document.getElementById('theme-btn').innerText = "حالت روشن"; }
-  }
-  function toggleTheme() { localStorage.setItem('theme', body.getAttribute('data-theme') === 'light' ? 'dark' : 'light'); loadTheme(); }
-  loadTheme();
-
-  function switchTab(id, el) {
-    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    document.getElementById('tab-' + id).classList.add('active');
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    el.classList.add('active');
-  }
-
-  function setHomeMode(idx) {
-    document.getElementById('mode-slider').style.transform = idx === 0 ? 'translateX(0)' : 'translateX(-100%)';
-    document.querySelectorAll('.toggle-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
-    document.getElementById('view-upload').style.display = idx===0 ? 'block':'none';
-    document.getElementById('view-download').style.display = idx===1 ? 'block':'none';
-  }
-
-  // KEY LOGIC
-  function loadKey() {
-    const k = localStorage.getItem('user_secret_key');
-    const el = document.getElementById('stored-key-display');
-    if (k) { el.innerText = k; document.getElementById('u_custom_key').value = k; document.getElementById('d_custom_key').value = k; }
-    else { el.innerText = "تنظیم نشده"; }
-  }
-  function generateNewKey() {
-    const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
-    let r = ''; for(let i=0;i<20;i++) r+=c.charAt(Math.floor(Math.random()*c.length));
-    localStorage.setItem('user_secret_key', r); loadKey();
-  }
-  function deleteKey() { if(confirm("حذف شود؟")) { localStorage.removeItem('user_secret_key'); loadKey(); } }
-  loadKey();
-
-  // API LOGIC (DIRECT)
-  document.getElementById('form-upload').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = document.getElementById('btn-upload'); 
-    const res = document.getElementById('res-upload');
-    btn.disabled = true; btn.innerText = '...'; 
-    res.style.display = 'none'; res.className = 'result-box';
-
-    try {
-      let content = document.getElementById('u_content').value;
-      const key = document.getElementById('u_custom_key').value;
-      if (key && typeof CryptoJS !== 'undefined') content = "ENC::" + CryptoJS.AES.encrypt(content, key).toString();
-
-      const fd = new FormData();
-      fd.append("title_1", document.getElementById('u_title').value);
-      fd.append("clipboardvalue_1", content);
-      fd.append("password", document.getElementById('u_pass').value);
-      fd.append("lifedate", document.getElementById('u_life').value);
-      fd.append("canupdate", "on");
-
-      const resp = await fetch('https://pastehub.ir/connector/qsend', { method: 'POST', body: fd });
-      const data = await resp.json();
+  <script>
+    // === 1. THEME & TABS ===
+    const body = document.body;
+    function loadTheme() {
+      const saved = localStorage.getItem('theme');
+      if(saved === 'light') { body.setAttribute('data-theme', 'light'); document.getElementById('theme-btn').innerText = "تغییر به حالت تاریک"; }
+      else { body.removeAttribute('data-theme'); document.getElementById('theme-btn').innerText = "تغییر به حالت روشن"; }
+    }
+    function toggleTheme() { localStorage.setItem('theme', body.getAttribute('data-theme') === 'light' ? 'dark' : 'light'); loadTheme(); }
+    loadTheme();
+  
+    function switchTab(id, el) {
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-' + id).classList.add('active');
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      el.classList.add('active');
+    }
+  
+    function setHomeMode(idx) {
+      document.getElementById('mode-slider').style.transform = idx === 0 ? 'translateX(0)' : 'translateX(-100%)';
+      document.querySelectorAll('.toggle-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
+      document.getElementById('view-upload').style.display = idx===0 ? 'block':'none';
+      document.getElementById('view-download').style.display = idx===1 ? 'block':'none';
+    }
+  
+    // === 2. KEY MANAGEMENT ===
+    function loadKey() {
+      const k = localStorage.getItem('user_secret_key');
+      const el = document.getElementById('stored-key-display');
+      if (k) { el.innerText = k; document.getElementById('u_custom_key').value = k; document.getElementById('d_custom_key').value = k; }
+      else { el.innerText = "تنظیم نشده"; }
+    }
+    function generateNewKey() {
+      const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
+      let r = ''; for(let i=0;i<20;i++) r+=c.charAt(Math.floor(Math.random()*c.length));
+      localStorage.setItem('user_secret_key', r); loadKey();
+    }
+    function deleteKey() { if(confirm("حذف شود؟")) { localStorage.removeItem('user_secret_key'); loadKey(); } }
+    loadKey();
+  
+    // === 3. API LOGIC (VIA CORS PROXY) ===
+    // We use corsproxy.io to bypass GitHub Pages/Local CORS restrictions
+    const PROXY_URL = "https://corsproxy.io/?url=";
+  
+    // -- UPLOAD --
+    document.getElementById('form-upload').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btn-upload'); 
+      const res = document.getElementById('res-upload');
+      const originalText = btn.innerHTML;
       
-      if(data.result === "OK") {
-        res.style.display='block';
-        res.innerHTML = `کد: <b style="font-size:1.5rem;display:block">${data.code}</b>`;
-        document.getElementById('form-upload').reset(); loadKey();
-      } else throw new Error(data.text);
-    } catch(err) { res.style.display='block'; res.classList.add('error'); res.innerText = err.message; }
-    finally { btn.disabled=false; btn.innerText='ارسال'; }
-  });
-
-  document.getElementById('form-download').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn=document.getElementById('btn-download'); const res=document.getElementById('res-download');
-    btn.disabled=true; btn.innerText='...'; res.style.display='none'; res.classList.remove('error');
-
-    try {
-      const fd = new FormData();
-      const code = document.getElementById('d_code').value.replace(/-/g, '');
-      for(let i=0;i<6;i++) fd.append(`verifycode_${i+1}`, code[i]);
-      if(document.getElementById('d_pass').value) fd.append("authpass", document.getElementById('d_pass').value);
-
-      const resp = await fetch('https://pastehub.ir/connector/qverify', { method:'POST', body:fd });
-      const data = await resp.json();
-
-      if(data.result === "OK") {
-         const p = new DOMParser().parseFromString(data.display, 'text/html');
-         let content = p.querySelector('textarea[id^="clipboardvalue_"]')?.value || "";
-         const key = document.getElementById('d_custom_key').value;
-         
-         if(content.startsWith("ENC::")) {
-            if(key && typeof CryptoJS !== 'undefined') {
-                try {
-                    const bytes = CryptoJS.AES.decrypt(content.substring(5), key);
-                    const txt = bytes.toString(CryptoJS.enc.Utf8);
-                    content = txt || "⛔ کلید اشتباه";
-                } catch(e){ content="⛔ خطا"; }
-            } else content="🔒 رمز شده";
-         }
-         res.style.display='block';
-         res.innerHTML = `<textarea readonly style="width:100%" rows="5">${content}</textarea>`;
-      } else throw new Error(data.text);
-    } catch(err) { res.style.display='block'; res.classList.add('error'); res.innerText = err.message; }
-    finally { btn.disabled=false; btn.innerText='دریافت'; }
-  });
-</script>
+      btn.disabled = true; btn.innerHTML = 'در حال ارسال (Proxy)...'; 
+      res.style.display = 'none'; res.className = 'result-box';
+  
+      try {
+        let content = document.getElementById('u_content').value;
+        const key = document.getElementById('u_custom_key').value;
+  
+        // ENCRYPT
+        if (key && typeof CryptoJS !== 'undefined') {
+            content = "ENC::" + CryptoJS.AES.encrypt(content, key).toString();
+        }
+  
+        const fd = new FormData();
+        fd.append("title_1", document.getElementById('u_title').value);
+        fd.append("clipboardvalue_1", content);
+        fd.append("password", document.getElementById('u_pass').value);
+        fd.append("lifedate", document.getElementById('u_life').value);
+        if(document.getElementById('u_single').checked) fd.append("issingleuse", "on");
+        fd.append("canupdate", "on");
+  
+        // FETCH VIA PROXY
+        const targetUrl = 'https://pastehub.ir/connector/qsend';
+        const resp = await fetch(PROXY_URL + encodeURIComponent(targetUrl), { 
+            method: 'POST', 
+            body: fd 
+        });
+  
+        const data = await resp.json();
+        
+        if(data.result === "OK") {
+          res.style.display='block';
+          res.innerHTML = `
+              <div style="font-size:0.9rem;opacity:0.8">کد رهگیری</div>
+              <b style="font-size:2rem;display:block;margin:10px 0;color:var(--primary)">${data.code}</b>
+              <button type="button" class="btn-outline" onclick="navigator.clipboard.writeText('${data.code}');alert('کپی شد')">کپی کد</button>
+          `;
+          document.getElementById('form-upload').reset(); loadKey();
+        } else throw new Error(data.text || "خطا در سرور");
+  
+      } catch(err) { 
+          res.style.display='block'; res.classList.add('error'); 
+          res.innerHTML = `خطا: ${err.message}<br><small>بررسی کنید که به اینترنت متصل باشید.</small>`; 
+      }
+      finally { btn.disabled=false; btn.innerHTML = originalText; }
+    });
+  
+    // -- DOWNLOAD --
+    document.getElementById('form-download').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn=document.getElementById('btn-download'); 
+      const res=document.getElementById('res-download');
+      const originalText = btn.innerHTML;
+      
+      btn.disabled=true; btn.innerHTML='در حال دریافت (Proxy)...'; 
+      res.style.display='none'; res.classList.remove('error');
+  
+      try {
+        const code = document.getElementById('d_code').value.replace(/-/g, '');
+        const fd = new FormData();
+        for(let i=0;i<6;i++) fd.append(`verifycode_${i+1}`, code[i]);
+        if(document.getElementById('d_pass').value) fd.append("authpass", document.getElementById('d_pass').value);
+  
+        // FETCH VIA PROXY
+        const targetUrl = 'https://pastehub.ir/connector/qverify';
+        const resp = await fetch(PROXY_URL + encodeURIComponent(targetUrl), { 
+            method:'POST', 
+            body:fd 
+        });
+        
+        const data = await resp.json();
+  
+        if(data.result === "OK") {
+           const p = new DOMParser().parseFromString(data.display, 'text/html');
+           let content = p.querySelector('textarea[id^="clipboardvalue_"]')?.value || "";
+           const key = document.getElementById('d_custom_key').value;
+           
+           // DECRYPT
+           let status = "";
+           if(content.startsWith("ENC::")) {
+              if(key && typeof CryptoJS !== 'undefined') {
+                  try {
+                      const bytes = CryptoJS.AES.decrypt(content.substring(5), key);
+                      const txt = bytes.toString(CryptoJS.enc.Utf8);
+                      if(txt) { content = txt; status = "✅ بازگشایی شد"; }
+                      else { content = "⛔ کلید اشتباه است"; }
+                  } catch(e){ content="⛔ خطا در پردازش"; }
+              } else content="🔒 رمز شده (کلید را وارد کنید)";
+           }
+           
+           res.style.display='block';
+           res.innerHTML = `
+              <div style="margin-bottom:5px;color:var(--primary)">${status}</div>
+              <textarea readonly style="width:100%" rows="6">${content}</textarea>
+              <button type="button" class="btn-outline" onclick="navigator.clipboard.writeText(document.querySelector('textarea').value);alert('کپی شد')">کپی متن</button>
+           `;
+        } else throw new Error(data.text || "کد اشتباه است");
+  
+      } catch(err) { 
+          res.style.display='block'; res.classList.add('error'); 
+          res.innerHTML = `خطا: ${err.message}`; 
+      }
+      finally { btn.disabled=false; btn.innerHTML = originalText; }
+    });
+  </script>
 </body>
 </html>
